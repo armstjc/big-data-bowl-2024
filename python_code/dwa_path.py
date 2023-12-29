@@ -505,37 +505,3 @@ if __name__ == "__main__":
             df.to_csv(fullpath, index = False)
         else:
             print(f"Already parsed game ID {game} in week {week}.")
-
-# from concurrent.futures import ProcessPoolExecutor
-
-# def process_play(gameId, playId):
-#     play_data = games[(games.gameId == gameId) & (games.playId == playId)]
-#     frame_numbers = play_data['frame'].unique()
-#     results = []
-
-#     for frame in frame_numbers:
-#         result = dwa(play_data, frame)
-#         results.append(result)
-    
-#     return results
-
-# def process_game(gameId, max_workers):
-#     game_plays = games[games.gameId == gameId]
-#     unique_plays = game_plays['playId'].unique()
-
-#     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-#         # Parallel processing for each play in the game
-#         results = list(executor.map(lambda playId: process_play(gameId, playId), unique_plays))
-    
-#     return results
-
-# gameId = 2022091800
-# max_workers = 4
-# process_game(gameId, max_workers)
-
-# unique_games = games['gameId'].unique()
-# all_results = []
-
-# for gameId in unique_games:
-#     game_results = process_game(gameId)
-#     all_results.extend(game_results)
