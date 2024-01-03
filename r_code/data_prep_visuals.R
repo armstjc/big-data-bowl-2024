@@ -250,7 +250,7 @@ mae_test <- results |>
   #yds_gain<=5
   #yds_gain>5, yds_gain<=20
   #yds_gain>20
-  filter(yds_gain<=5)
+  filter(yds_gain>20)
 
 sqrt(sum((mae_test$cond_median - mae_test$yds_remaining)^2) / nrow(mae_test))
 
@@ -281,15 +281,15 @@ run <- team |>
   filter(true_pass==0) |>
   ggplot(aes(x=ygoe, y=epa)) +
   nflplotR::geom_mean_lines(aes(x0 = ygoe, y0 = epa)) +
-  # #Linear line, 95% CI displayed
-  # ggpmisc::stat_poly_line() +
+  #Linear line, 95% CI displayed
+  ggpmisc::stat_poly_line() +
   # #Pearson's R
   # ggpmisc::stat_correlation(label.x = "right", label.y = "bottom") +
-  nflplotR::geom_nfl_logos(aes(team_abbr = defteam), width = 0.05, alpha = 0.8) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = defteam), width = 0.06, alpha = 0.8) +
   labs(x = "Yards Gained Over Expected (YGOE)",
        y = "Expected Points Added (EPA)",
-       title = "YGOE's correlation with EPA on Run Plays",
-       subtitle = "First nine weeks for defenses (2022)") +
+       title = "Defense's YGOE correlation with EPA",
+       subtitle = "First nine weeks for run plays (2022)") +
   #Themes
   ggthemes::theme_fivethirtyeight() +
   theme(legend.position='none') +
@@ -309,15 +309,15 @@ pass <- team |>
   filter(true_pass==1) |>
   ggplot(aes(x=ygoe, y=epa)) +
   nflplotR::geom_mean_lines(aes(x0 = ygoe, y0 = epa)) +
-  # #Linear line, 95% CI displayed
-  # ggpmisc::stat_poly_line() +
+  #Linear line, 95% CI displayed
+  ggpmisc::stat_poly_line() +
   # #Pearson's R
   # ggpmisc::stat_correlation(label.x = "right", label.y = "bottom") +
-  nflplotR::geom_nfl_logos(aes(team_abbr = defteam), width = 0.05, alpha = 0.8) +
+  nflplotR::geom_nfl_logos(aes(team_abbr = defteam), width = 0.06, alpha = 0.8) +
   labs(x = "Yards Gained Over Expected (YGOE)",
        y = "Expected Points Added (EPA)",
-       title = "YGOE's correlation with EPA on Pass Plays",
-       subtitle = "First nine weeks for defenses (2022)") +
+       title = "Defense's YGOE correlation with EPA",
+       subtitle = "First nine weeks for pass plays (2022)") +
   #Themes
   ggthemes::theme_fivethirtyeight() +
   theme(legend.position='none') +
@@ -377,7 +377,7 @@ first_last <- function(name) {
 run <- car |>
   filter(true_pass==0) |> 
   arrange(-ygoe) |>
-  slice(1:15) |>
+  dplyr::slice(1:15) |>
   mutate(rank = dplyr::dense_rank(dplyr::desc(ygoe))) |>
   select(rank, name, team, pos, plays, yds_gain, avg_dev, ygoe)
 
@@ -426,7 +426,7 @@ run |>
 pass <- car |>
   filter(true_pass==1) |> 
   arrange(-ygoe) |>
-  slice(1:15) |>
+  dplyr::slice(1:15) |>
   mutate(rank = dplyr::dense_rank(dplyr::desc(ygoe))) |>
   select(rank, name, team, pos, plays, yds_gain, avg_dev, ygoe)
 
@@ -523,8 +523,8 @@ tackler0 <- tackler_new |>
     TOP = sum(top, na.rm=TRUE),
     tackles_pass = sum(tackle[pass==1], na.rm=TRUE),
     tackles_run = sum(tackle[pass==0], na.rm=TRUE),
-    impact_pct_pass = mean(contribution_pct[pass==1], na.rm=TRUE),
-    impact_pct_run = mean(contribution_pct[pass==0], na.rm=TRUE),
+    con_pct_pass = mean(contribution_pct[pass==1], na.rm=TRUE),
+    con_pct_run = mean(contribution_pct[pass==0], na.rm=TRUE),
     ygoe_pass = mean(yds_remaining[pass==1 & tackle==1], na.rm=TRUE) - mean(cond_median[pass==1 & tackle==1], na.rm=TRUE),
     ygoe_run = mean(yds_remaining[pass==0 & tackle==1], na.rm=TRUE) - mean(cond_median[pass==0 & tackle==1], na.rm=TRUE),
     doT_pass = mean(yds_gain[pass==1 & tackle==1], na.rm=TRUE),
@@ -537,15 +537,15 @@ tackler0 <- tackler_new |>
   ungroup() |>
   mutate(resistance = mlev - (lev)) |>
   select(name, pos, plays, team, Solo, Assist, Miss, xTackle, Tackle, TOP, 
-         tackles_pass, tackles_run, doT_pass, doT_run, impact_pct_pass, impact_pct_run, ygoe_pass, ygoe_run
+         tackles_pass, tackles_run, doT_pass, doT_run, con_pct_pass, con_pct_run, ygoe_pass, ygoe_run
   ) |>
   filter(plays>24)
 
-write.csv(tackler0, "tackler.csv", row.names = FALSE)
+# write.csv(tackler0, "tackler.csv", row.names = FALSE)
 
 tackler0 |>
   filter(plays>124) |>
-  ggplot(aes(x = impact_pct_run, y = ygoe_run)) +
+  ggplot(aes(x = con_pct_run, y = ygoe_run)) +
   #Linear line, 95% CI displayed
   ggpmisc::stat_poly_line() +
   #Pearson's R
@@ -555,7 +555,7 @@ tackler0 |>
 
 tackler0 |>
   filter(plays>124) |>
-  ggplot(aes(x = impact_pct_pass, y = ygoe_pass)) +
+  ggplot(aes(x = con_pct_pass, y = ygoe_pass)) +
   #Linear line, 95% CI displayed
   ggpmisc::stat_poly_line() +
   #Pearson's R
@@ -566,9 +566,9 @@ tackler0 |>
 run <- tackler0 |>
   filter(tackles_run>9) |>
   arrange(ygoe_run) |>
-  slice(1:15) |>
+  dplyr::slice(1:15) |>
   mutate(rank = dplyr::dense_rank(ygoe_run)) |>
-  select(rank, name, team, pos, tackles_run, doT_run, impact_pct_run, ygoe_run)
+  select(rank, name, team, pos, tackles_run, doT_run, con_pct_run, ygoe_run)
 
 run$name <- first_last(run$name)
 
@@ -584,14 +584,14 @@ run |>
     pos = md("**Pos**"),
     tackles_run = md("**Tackles**"),
     doT_run = md("**doT**"),
-    impact_pct_run = md("**IMP%**"),
+    con_pct_run = md("**CON%**"),
     ygoe_run = md("**YGOE**")
   ) |>
-  fmt_percent(columns = c(impact_pct_run), decimals = 1) |>
+  fmt_percent(columns = c(con_pct_run), decimals = 1) |>
   fmt_number(columns = c(doT_run), decimals = 1) |>
   fmt_number(columns = c(ygoe_run), decimals = 2) |>
-  tab_style(style = cell_text(weight = "bold"),locations = cells_body(columns = c(rank, pos, tackles_run, doT_run, impact_pct_run, ygoe_run))) |> 
-  cols_align(align = "center", columns = c(rank, name, team, pos, tackles_run, doT_run, impact_pct_run, ygoe_run)) |>
+  tab_style(style = cell_text(weight = "bold"),locations = cells_body(columns = c(rank, pos, tackles_run, doT_run, con_pct_run, ygoe_run))) |> 
+  cols_align(align = "center", columns = c(rank, name, team, pos, tackles_run, doT_run, con_pct_run, ygoe_run)) |>
   tab_style(style = cell_text(font = c(google_font(name = "Karla"), default_fonts()), size = "large"), 
             locations = cells_title(groups = "title")) |>
   tab_style(style = cell_text(font = c(google_font(name = "Karla"), default_fonts()), size='small'),
@@ -602,13 +602,13 @@ run |>
   text_transform(locations = cells_body(c(team)),
                  fn = function(x) web_image(url = paste0("https://a.espncdn.com/i/teamlogos/nfl/500/", x, ".png"))) |>
   cols_width(c(rank, team) ~ px(50)) |>
-  cols_width(c(pos, tackles_run, doT_run, impact_pct_run, ygoe_run) ~ px(55)) |>
+  cols_width(c(pos, tackles_run, doT_run, con_pct_run, ygoe_run) ~ px(55)) |>
   cols_width(c(name) ~ px(165)) |>
   tab_style(style = list(cell_borders(sides = "bottom", color = "black", weight = px(3))),
             locations = list(cells_column_labels(columns = everything()))) |>
   gt::data_color(columns = c(ygoe_run),
                  colors = scales::col_numeric(palette = viridis::viridis(10, direction = 1, option ="D"),
-                                              domain = c(-2.1, -1.15)), alpha = 0.8) |>
+                                              domain = c(-2.1, -1.25)), alpha = 0.8) |>
   tab_options(data_row.padding = px(0.5), source_notes.font.size = 10) |>
   gtsave(filename = "run_def.png", vwidth = 600, vheight = 1100)
 
@@ -616,9 +616,9 @@ run |>
 pass <- tackler0 |>
   filter(tackles_pass>9) |>
   arrange(ygoe_pass) |>
-  slice(1:15) |>
+  dplyr::slice(1:15) |>
   mutate(rank = dplyr::dense_rank(ygoe_pass)) |>
-  select(rank, name, team, pos, tackles_pass, doT_pass, impact_pct_pass, ygoe_pass)
+  select(rank, name, team, pos, tackles_pass, doT_pass, con_pct_pass, ygoe_pass)
 
 pass$name <- first_last(pass$name)
 
@@ -634,14 +634,14 @@ pass |>
     pos = md("**Pos**"),
     tackles_pass = md("**Tackles**"),
     doT_pass = md("**doT**"),
-    impact_pct_pass = md("**IMP%**"),
+    con_pct_pass = md("**CON%**"),
     ygoe_pass = md("**YGOE**")
   ) |>
-  fmt_percent(columns = c(impact_pct_pass), decimals = 1) |>
+  fmt_percent(columns = c(con_pct_pass), decimals = 1) |>
   fmt_number(columns = c(doT_pass), decimals = 1) |>
   fmt_number(columns = c(ygoe_pass), decimals = 2) |>
-  tab_style(style = cell_text(weight = "bold"),locations = cells_body(columns = c(rank, pos, tackles_pass, doT_pass, impact_pct_pass, ygoe_pass))) |> 
-  cols_align(align = "center", columns = c(rank, name, team, pos, tackles_pass, doT_pass, impact_pct_pass, ygoe_pass)) |>
+  tab_style(style = cell_text(weight = "bold"),locations = cells_body(columns = c(rank, pos, tackles_pass, doT_pass, con_pct_pass, ygoe_pass))) |> 
+  cols_align(align = "center", columns = c(rank, name, team, pos, tackles_pass, doT_pass, con_pct_pass, ygoe_pass)) |>
   tab_style(style = cell_text(font = c(google_font(name = "Karla"), default_fonts()), size = "large"), 
             locations = cells_title(groups = "title")) |>
   tab_style(style = cell_text(font = c(google_font(name = "Karla"), default_fonts()), size='small'),
@@ -652,13 +652,13 @@ pass |>
   text_transform(locations = cells_body(c(team)),
                  fn = function(x) web_image(url = paste0("https://a.espncdn.com/i/teamlogos/nfl/500/", x, ".png"))) |>
   cols_width(c(rank, team) ~ px(50)) |>
-  cols_width(c(pos, tackles_pass, doT_pass, impact_pct_pass, ygoe_pass) ~ px(55)) |>
+  cols_width(c(pos, tackles_pass, doT_pass, con_pct_pass, ygoe_pass) ~ px(55)) |>
   cols_width(c(name) ~ px(165)) |>
   tab_style(style = list(cell_borders(sides = "bottom", color = "black", weight = px(3))),
             locations = list(cells_column_labels(columns = everything()))) |>
   gt::data_color(columns = c(ygoe_pass),
                  colors = scales::col_numeric(palette = viridis::viridis(10, direction = 1, option ="D"),
-                                              domain = c(-3.35, -2.35)), alpha = 0.8) |>
+                                              domain = c(-3.1, -2.3)), alpha = 0.8) |>
   tab_options(data_row.padding = px(0.5), source_notes.font.size = 10) |>
   gtsave(filename = "pass_def.png", vwidth = 600, vheight = 1100)
 
