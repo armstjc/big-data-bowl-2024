@@ -18,6 +18,16 @@ library(nflreadr)
 
 setwd("~/BDB24")
 
+# #Team & EPA
+# nfl <- nflreadr::load_pbp(2022) |>
+#   #filter first week to condense data
+#   dplyr::filter(season_type=='REG', week<10, !is.na(epa)) |>
+#   dplyr::mutate(gameId = as.integer(old_game_id),
+#                 playId = as.integer(play_id),
+#                 play_type = ifelse(pass==1 & qb_scramble==0, 1, 
+#                                    ifelse(pass==1 & qb_scramble==1, 2, 3))) |>
+#   dplyr::select(gameId, playId, play_type)
+# 
 # leverage <- read.csv('data/leverage.csv')
 # rel_vel <- read.csv('data/rel_vel.csv')
 # imp_vel <- read.csv('data/imp_vel.csv')
@@ -38,7 +48,7 @@ setwd("~/BDB24")
 #          cumtackle = cumsum(lag_tackle)) |>
 #   ungroup() |>
 #   group_by(gameId, playId) |>
-#   arrange(cumtackle) |>
+#   arrange(desc(cumtackle), dist_to_carrier) |>
 #   mutate(tackle_rank = 1:n()) |>
 #   ungroup() |>
 #   select(gameId, playId, defId, tackle, assist, forcedFumble,
@@ -51,19 +61,22 @@ setwd("~/BDB24")
 #   inner_join(imp_vel, by = c("gameId", "playId", "defId", "frame" = "frameId")) |>
 #   left_join(tackle_frame, by = c("gameId", "playId", "frame")) |>
 #   left_join(tackle0, by = c("gameId", "playId", "defId")) |>
+#   inner_join(nfl, by = c("gameId", "playId")) |>
 #   #Frames Converted to Seconds
 #   arrange(gameId, playId, frame) |>
 #   group_by(gameId, playId) |>
 #   mutate(car_impact = ifelse(dist_to_carrier<=2, bc_impact, 0),
 #          tot_tackle = ifelse(tackle == 1 | assist == 1, 1, 0),
-#          true_tackle = ifelse(tot_tackle == is_tackle & is_tackle == 1, 1, 0),
 #          adj_frame = frame - min(frame),
 #          seconds = adj_frame/10) |>
 #   ungroup()
 # 
 # final0 <- final |>
-#   select(gameId, playId, defId, adj_frame, tackle = tot_tackle, dist_to_carrier, tackle_rank,
+#   select(gameId, playId, defId, adj_frame, tackle = tot_tackle, dist_to_carrier, tackle_rank, play_type,
 #          def_x, def_y, def_joules, car_x, car_y, car_joules, car_impact, seconds, block_wt, relative_velo)
+# 
+# rm(nfl, leverage, rel_vel, imp_vel, tackle, tackle_frame, tackle0)
+# gc()
 
 library(caTools)
 library(xgboost)
@@ -78,15 +91,15 @@ library(SHAPforxgboost)
 #   dplyr::inner_join(game_fold_table, by = "gameId")
 # 
 # #Test Statistical Significance and Multicollinearity with simple Logit Model
-# logit_model <- glm(tackle ~ dist_to_carrier + seconds + def_joules + car_joules +
+# logit_model <- glm(tackle ~ dist_to_carrier + seconds + play_type + def_joules + car_joules +
 #                      car_impact + tackle_rank + block_wt + relative_velo,
 #                    data = model, family = "binomial")
 # 
 # summary(logit_model)
 # with(summary(logit_model), 1 - deviance/null.deviance)
 # car::vif(logit_model)
-
-write.csv(model, "data/model.csv", row.names = FALSE)
+# 
+# write.csv(model, "data/model.csv", row.names = FALSE)
 
 model <- read.csv("data/model.csv")
 
@@ -142,7 +155,7 @@ which.max(f1_scores) #20
 max_f1 = which.max(f1_scores)/100 #20
 
 predict <- xgb_prob_preds |>
-  mutate(pred_thresh = ifelse(test_pred_probs>0.2, 1, 0))
+  mutate(pred_thresh = ifelse(test_pred_probs>max_f1, 1, 0))
 
 write.csv(predict, "data/predictions.csv", row.names = FALSE)
 
@@ -151,31 +164,31 @@ predict <- read.csv("data/predictions.csv")
 #Accuracy
 confusionMatrix(as.factor(predict$pred_thresh), as.factor(predict$test_actual), mode="prec_recall")
 
-recall <- 248917/(248917 + 315797) #A ?/ (A + C), C being False Negative (TPR)
-precision <- 248917/(248917 + 268708) #A / (A + B), A being True Positive and B being False Positive (PPV)
+recall <- 248630/(248630 + 316084) #A ?/ (A + C), C being False Negative (TPR)
+precision <- 248630/(248630 + 268163) #A / (A + B), A being True Positive and B being False Positive (PPV)
 
 f1 <- 2 * (precision * recall)/(precision + recall)
 f1
-#0.4599613
+#0.4597844
 
 # MCC
-tp <- 248917
-tn <- 3924595
-fp <- 268708
-fn <- 315797
+tp <- 248630
+tn <- 3925140
+fp <- 268163
+fn <- 316084
 
 MCC <- (tn * tp - fn * fp)/sqrt((tp + fp)*(tp + fn)*(tn + fp)*(tn + fn))
 MCC
-#0.3912748
+#0.3911581
 
 normMCC <- (MCC + 1)/2
 normMCC
-#0.6956374
+#0.695579
 
 #Brier Score
 brier <- sum((predict$test_pred_probs - predict$test_actual)**2)/nrow(predict)
 brier
-#0.08101288
+#0.08092262
 
 #Shap Values
 fold <- unique(model$game_fold)
@@ -255,18 +268,19 @@ shap0 |>
                             ifelse(variable=='def_joules', 'Defender Kinectic Energy', 
                                    ifelse(variable=='tackle_rank', 'Relative Tackle Rank', 
                                           ifelse(variable=='block_wt', 'Blocker Leverage',
-                                                 ifelse(variable=='seconds', 'Seconds after Snap',
+                                                 ifelse(variable=='seconds', 'Seconds Elapsed',
                                                         ifelse(variable=='relative_velo', 'Relative Velocity', 
                                                                ifelse(variable=='def_x', 'Defender X', 
                                                                       ifelse(variable=='def_y', 'Defender Y', 
                                                                              ifelse(variable=='car_joules', 'Carrier Kinectic Energy',
                                                                                     ifelse(variable=='car_x', 'Carrier X', 
                                                                                            ifelse(variable=='car_y', 'Carrier Y', 
-                                                                                                  ifelse(variable=='car_impact', 'Collision Velocity', NA))))))))))))) |>
+                                                                                                  ifelse(variable=='car_impact', 'Collision Velocity', 
+                                                                                                         ifelse(variable=='play_type', 'Play Type', NA)))))))))))))) |>
   ggplot(aes(x=reorder(dependent, mshap), y=mshap)) + 
   coord_flip() +
-  geom_bar(aes(alpha = as.factor(mshap)), stat = "identity", fill = "#B40F20") +
-  scale_alpha_manual(values = c(0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1)) +
+  geom_bar(aes(alpha = as.factor(mshap)), stat = "identity", fill = "forestgreen") +
+  scale_alpha_manual(values = c(0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1)) +
   #titles and caption
   labs(x = "",
        y = "Mean SHAP Value",
